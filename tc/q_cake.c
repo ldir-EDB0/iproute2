@@ -55,7 +55,7 @@ static void explain(void)
 	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
-	                "                [ squash ]\n"
+	                "                [ squash | nosquash* ]\n"
 	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
 }
