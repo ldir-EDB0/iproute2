@@ -53,8 +53,7 @@ static void explain(void)
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* | autorate_ingress ]\n"
 	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
 	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
-	                "                [ flowblind | srchost | dsthost | hosts | flows* | \n"
-	                "                [ dual | dualsrc | dualdst ]\n"
+	                "                [ flowblind | srchost | dsthost | hosts | flows* | dual-srchost | dual-dsthost | triple-isolate ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 	                "                [ wash | nowash* ]\n"
 	                "                [ memlimit LIMIT ]\n"
@@ -156,12 +155,12 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			flowmode = 3;
 		} else if (strcmp(*argv, "flows") == 0) {
 			flowmode = 4;
-		} else if (strcmp(*argv, "dual") == 0) {
-			flowmode = 8;
-		} else if (strcmp(*argv, "dualsrc") == 0) {
-			flowmode = 9;
-		} else if (strcmp(*argv, "dualdst") == 0) {
-			flowmode = 10;
+		} else if (strcmp(*argv, "dual-srchost") == 0) {
+			flowmode = 5;
+		} else if (strcmp(*argv, "dual-dsthost") == 0) {
+			flowmode = 6;
+		} else if (strcmp(*argv, "triple-isolate") == 0) {
+			flowmode = 7;
 
 		} else if (strcmp(*argv, "atm") == 0) {
 			atm = 1;
@@ -373,14 +372,14 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		case 4:
 			fprintf(f, "flows ");
 			break;
-		case 8:
-			fprintf(f, "dual ");
+		case 5:
+			fprintf(f, "dual-srchost ");
 			break;
-		case 9:
-			fprintf(f, "dualsrc ");
+		case 6:
+			fprintf(f, "dual-dsthost ");
 			break;
-		case 10:
-			fprintf(f, "dualdst ");
+		case 7:
+			fprintf(f, "triple-isolate ");
 			break;
 		default:
 			fprintf(f, "(?flowmode?) ");
