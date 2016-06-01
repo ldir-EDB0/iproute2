@@ -850,4 +850,55 @@ struct tc_pie_xstats {
 	__u32 maxq;             /* maximum queue size */
 	__u32 ecn_mark;         /* packets marked with ecn*/
 };
+
+/* CAKE */
+enum {
+	TCA_CAKE_UNSPEC,
+	TCA_CAKE_BASE_RATE,
+	TCA_CAKE_DIFFSERV_MODE,
+	TCA_CAKE_ATM,
+	TCA_CAKE_FLOW_MODE,
+	TCA_CAKE_OVERHEAD,
+	TCA_CAKE_RTT,
+	TCA_CAKE_TARGET,
+	TCA_CAKE_AUTORATE,
+	TCA_CAKE_MEMORY,
+	__TCA_CAKE_MAX
+};
+#define TCA_CAKE_MAX	(__TCA_CAKE_MAX - 1)
+
+struct tc_cake_traffic_stats {
+	__u32 packets;
+	__u32 link_ms;
+	__u64 bytes;
+};
+
+#define TC_CAKE_MAX_TINS (8)
+struct tc_cake_xstats {
+	__u16 version;  /* == 3, increments when struct extended */
+	__u8  max_tins; /* == TC_CAKE_MAX_TINS */
+	__u8  tin_cnt;  /* <= TC_CAKE_MAX_TINS */
+
+	__u32 threshold_rate   [TC_CAKE_MAX_TINS];
+	__u32 target_us        [TC_CAKE_MAX_TINS];
+	struct tc_cake_traffic_stats sent      [TC_CAKE_MAX_TINS];
+	struct tc_cake_traffic_stats dropped   [TC_CAKE_MAX_TINS];
+	struct tc_cake_traffic_stats ecn_marked[TC_CAKE_MAX_TINS];
+	struct tc_cake_traffic_stats backlog   [TC_CAKE_MAX_TINS];
+	__u32 interval_us      [TC_CAKE_MAX_TINS];
+	__u32 way_indirect_hits[TC_CAKE_MAX_TINS];
+	__u32 way_misses       [TC_CAKE_MAX_TINS];
+	__u32 way_collisions   [TC_CAKE_MAX_TINS];
+	__u32 peak_delay_us    [TC_CAKE_MAX_TINS]; /* ~= delay to bulk flows */
+	__u32 avge_delay_us    [TC_CAKE_MAX_TINS];
+	__u32 base_delay_us    [TC_CAKE_MAX_TINS]; /* ~= delay to sparse flows */
+	__u16 sparse_flows     [TC_CAKE_MAX_TINS];
+	__u16 bulk_flows       [TC_CAKE_MAX_TINS];
+	__u32 last_skblen      [TC_CAKE_MAX_TINS]; /* skb_headlen */
+	__u32 max_skblen       [TC_CAKE_MAX_TINS];
+	__u32 capacity_estimate;  /* version 2 */
+	__u32 memory_limit;       /* version 3 */
+	__u32 memory_used;        /* version 3 */
+};
+
 #endif
