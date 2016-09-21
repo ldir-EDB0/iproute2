@@ -55,6 +55,7 @@ static void explain(void)
 	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
 	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* | dual-srchost | dual-dsthost | triple-isolate ]\n"
+	                "                [ nonat* | srcnat | dstnat | nat ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
@@ -72,6 +73,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int  overhead = 0;
 	bool overhead_set = false;
 	int flowmode = -1;
+	int natmode = -1;
 	int atm = -1;
 	int autorate = -1;
 	struct rtattr *tail;
@@ -155,6 +157,15 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			flowmode = 6;
 		} else if (strcmp(*argv, "triple-isolate") == 0) {
 			flowmode = 7;
+
+		} else if (strcmp(*argv, "nonat") == 0) {
+			natmode = 0;
+		} else if (strcmp(*argv, "srcnat") == 0) {
+			natmode = 1;
+		} else if (strcmp(*argv, "dstnat") == 0) {
+			natmode = 2;
+		} else if (strcmp(*argv, "nat") == 0) {
+			natmode = 3;
 
 		} else if (strcmp(*argv, "atm") == 0) {
 			atm = 1;
@@ -289,6 +300,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_ATM, &atm, sizeof(atm));
 	if (flowmode != -1)
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
+	if (natmode != -1)
+		addattr_l(n, 1024, TCA_CAKE_NAT_MODE, &natmode, sizeof(natmode));
 	if (overhead_set)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
 	if (interval)
@@ -311,6 +324,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned bandwidth = 0;
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
+	unsigned natmode = 0;
 	unsigned interval = 0;
 	unsigned memlimit = 0;
 	int overhead = 0;
@@ -397,6 +411,29 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			break;
 		};
 	}
+
+	if (tb[TCA_CAKE_NAT_MODE] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_NAT_MODE]) >= sizeof(__u32)) {
+		natmode = rta_getattr_u32(tb[TCA_CAKE_NAT_MODE]);
+		switch(natmode) {
+		case 0:
+			fprintf(f, "nonat ");
+			break;
+		case 1:
+			fprintf(f, "srcnat ");
+			break;
+		case 2:
+			fprintf(f, "dstnat ");
+			break;
+		case 3:
+			fprintf(f, "nat ");
+			break;
+		default:
+			fprintf(f, "(?natmode?) ");
+			break;
+		};
+	}
+
 	if (tb[TCA_CAKE_ATM] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ATM]) >= sizeof(__u32)) {
 		atm = rta_getattr_u32(tb[TCA_CAKE_ATM]);
