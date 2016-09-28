@@ -214,9 +214,11 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "pppoe-ptm") == 0) {
 			atm = 0;
 			overhead += 27;
+			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-ptm") == 0) {
 			atm = 0;
 			overhead += 19;
+			overhead_set = true;
 
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
 			/*
