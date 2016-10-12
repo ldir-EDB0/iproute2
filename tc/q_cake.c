@@ -56,6 +56,7 @@ static void explain(void)
 	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* | dual-srchost | dual-dsthost | triple-isolate ] [ nat | nonat* ]\n"
 	                "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
+	                "                [ wash | nowash* ]\n"
 	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
 }
@@ -72,6 +73,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int  overhead = 0;
 	bool overhead_set = false;
 	bool overhead_override = false;
+	int wash = -1;
 	int flowmode = -1;
 	int nat = -1;
 	int atm = -1;
@@ -140,6 +142,11 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = 4;
 		} else if (strcmp(*argv, "diffserv-llt") == 0) {
 			diffserv = 5;
+
+		} else if (strcmp(*argv, "nowash") == 0) {
+			wash = 0;
+		} else if (strcmp(*argv, "wash") == 0) {
+			wash = 1;
 
 		} else if (strcmp(*argv, "flowblind") == 0) {
 			flowmode = 0;
@@ -321,6 +328,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memlimit, sizeof(memlimit));
 	if (nat != -1)
 		addattr_l(n, 1024, TCA_CAKE_NAT, &nat, sizeof(nat));
+	if (wash != -1)
+		addattr_l(n, 1024, TCA_CAKE_WASH, &wash, sizeof(wash));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
@@ -340,6 +349,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int atm = 0;
 	int nat = 0;
 	int autorate = 0;
+	int wash = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -426,6 +436,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		if(nat)
 			fprintf(f, "nat ");
 	}
+	if (tb[TCA_CAKE_WASH] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_WASH]) >= sizeof(__u32)) {
+		wash = rta_getattr_u32(tb[TCA_CAKE_WASH]);
+	}
 	if (tb[TCA_CAKE_ATM] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ATM]) >= sizeof(__u32)) {
 		atm = rta_getattr_u32(tb[TCA_CAKE_ATM]);
@@ -442,6 +456,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
 		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
 	}
+
+	if (wash)
+		fprintf(f,"wash ");
 
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
