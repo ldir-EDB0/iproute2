@@ -54,8 +54,8 @@ static void explain(void)
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* | autorate_ingress ]\n"
 	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
 	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
-	                "                [ flowblind | srchost | dsthost | hosts | flows* | dual-srchost | dual-dsthost | triple-isolate ]\n"
-	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
+	                "                [ flowblind | srchost | dsthost | hosts | flows* | dual-srchost | dual-dsthost | triple-isolate ] [ nat | nonat* ]\n"
+	                "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
 }
@@ -71,7 +71,9 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned memlimit = 0;
 	int  overhead = 0;
 	bool overhead_set = false;
+	bool overhead_override = false;
 	int flowmode = -1;
+	int nat = -1;
 	int atm = -1;
 	int autorate = -1;
 	struct rtattr *tail;
@@ -156,6 +158,13 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "triple-isolate") == 0) {
 			flowmode = 7;
 
+		} else if (strcmp(*argv, "nat") == 0) {
+			nat = 1;
+		} else if (strcmp(*argv, "nonat") == 0) {
+			nat = 0;
+
+		} else if (strcmp(*argv, "ptm") == 0) {
+			atm = 2;
 		} else if (strcmp(*argv, "atm") == 0) {
 			atm = 1;
 		} else if (strcmp(*argv, "noatm") == 0) {
@@ -165,6 +174,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			atm = 0;
 			overhead = 0;
 			overhead_set = true;
+			overhead_override = true;
 		} else if (strcmp(*argv, "conservative") == 0) {
 			/*
 			 * Deliberately over-estimate overhead:
@@ -175,7 +185,19 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			overhead = 48;
 			overhead_set = true;
 
-		/* Various ADSL framing schemes */
+		/*
+		 * DOCSIS overhead figures courtesy of Greg White @ CableLabs.
+		 */
+		} else if (strcmp(*argv, "docsis-downstream") == 0) {
+			atm = 0;
+			overhead += 35;
+			overhead_set = true;
+		} else if (strcmp(*argv, "docsis-upstream") == 0) {
+			atm = 0;
+			overhead += 28;
+			overhead_set = true;
+
+		/* Various ADSL framing schemes, all over ATM cells */
 		} else if (strcmp(*argv, "ipoa-vcmux") == 0) {
 			atm = 1;
 			overhead += 8;
@@ -209,45 +231,37 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			overhead += 40;
 			overhead_set = true;
 
-		/* Typical VDSL2 framing schemes */
-		/* NB: PTM includes HDLC's 0x7D/7E expansion, adds extra 1/128 */
+		/* Typical VDSL2 framing schemes, both over PTM */
+		/* PTM has 64b/65b coding which absorbs some bandwidth */
 		} else if (strcmp(*argv, "pppoe-ptm") == 0) {
-			atm = 0;
+			atm = 2;
 			overhead += 27;
 			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-ptm") == 0) {
-			atm = 0;
+			atm = 2;
 			overhead += 19;
 			overhead_set = true;
 
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
 			/*
-			 * The above overheads are relative to an IP packet,
-			 * but if the physical interface is Ethernet, Linux
-			 * includes Ethernet framing overhead already.
+			 * We used to use this flag to manually compensate for
+			 * Linux including the Ethernet header on Ethernet-type
+			 * interfaces, but not on IP-type interfaces.
+			 *
+			 * It is no longer needed, because Cake now adjusts for
+			 * that automatically, and is thus ignored.
+			 *
+			 * It would be deleted entirely, but it appears in the
+			 * stats output when the automatic compensation is active.
 			 */
-			overhead -= 14;
-			overhead_set = true;
 
 		/* Additional Ethernet-related overheads used by some ISPs */
-		} else if (strcmp(*argv, "ether-phy") == 0) {
-			/* ethernet pre-amble & interframe gap 20 bytes
-			 * Linux will have already accounted for MACs & frame type 14 bytes
-			 * you probably want to add an FCS as well*/
-			overhead += 20;
-			overhead_set = true;
-		} else if (strcmp(*argv, "ether-all") == 0) {
+		} else if (strcmp(*argv, "ethernet") == 0) {
 			/* ethernet pre-amble & interframe gap & FCS
-			 * Linux will have already accounted for MACs & frame type 14 bytes
-			 * you may need to add vlan tag*/
-			overhead += 24;
+			 * you may need to add vlan tag */
+			overhead += 38;
 			overhead_set = true;
 
-		} else if (strcmp(*argv, "ether-fcs") == 0) {
-			/* Frame Check Sequence */
-			/* we ignore the minimum frame size, because IP packets usually meet it */
-			overhead += 4;
-			overhead_set = true;
 		} else if (strcmp(*argv, "ether-vlan") == 0) {
 			/* 802.1q VLAN tag - may be repeated */
 			overhead += 4;
@@ -293,6 +307,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
 	if (overhead_set)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
+	if (overhead_override) {
+		unsigned zero = 0;
+		addattr_l(n, 1024, TCA_CAKE_ETHERNET, &zero, sizeof(zero));
+	}
 	if (interval)
 		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
 	if (target)
@@ -301,6 +319,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate, sizeof(autorate));
 	if (memlimit)
 		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memlimit, sizeof(memlimit));
+	if (nat != -1)
+		addattr_l(n, 1024, TCA_CAKE_NAT, &nat, sizeof(nat));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
@@ -316,7 +336,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned interval = 0;
 	unsigned memlimit = 0;
 	int overhead = 0;
+	int ethernet = 0;
 	int atm = 0;
+	int nat = 0;
 	int autorate = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
@@ -369,6 +391,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_FLOW_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_FLOW_MODE]) >= sizeof(__u32)) {
 		flowmode = rta_getattr_u32(tb[TCA_CAKE_FLOW_MODE]);
+		nat = !!(flowmode & 64);
+		flowmode &= ~64;
 		switch(flowmode) {
 		case 0:
 			fprintf(f, "flowblind ");
@@ -398,6 +422,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			fprintf(f, "(?flowmode?) ");
 			break;
 		};
+
+		if(nat)
+			fprintf(f, "nat ");
 	}
 	if (tb[TCA_CAKE_ATM] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ATM]) >= sizeof(__u32)) {
@@ -407,6 +434,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
 		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
 	}
+	if (tb[TCA_CAKE_ETHERNET] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_ETHERNET]) >= sizeof(__u32)) {
+		ethernet = rta_getattr_u32(tb[TCA_CAKE_ETHERNET]);
+	}
 	if (tb[TCA_CAKE_RTT] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
 		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
@@ -415,16 +446,23 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
 
-	if (atm)
-		fprintf(f, "atm ");
-	else if (overhead)
-		fprintf(f, "noatm ");
+	if (!atm && overhead == ethernet) {
+		fprintf(f, "raw ");
+	} else {
+		if (atm == 1)
+			fprintf(f, "atm ");
+		else if (atm == 2)
+			fprintf(f, "ptm ");
+		else
+			fprintf(f, "noatm ");
 
-	if (overhead || atm)
 		fprintf(f, "overhead %d ", overhead);
 
-	if (!atm && !overhead)
-		fprintf(f, "raw ");
+		// This is actually the *amount* of automatic compensation, but we only report
+		// its presence as a boolean for now.
+		if (ethernet)
+			fprintf(f, "via-ethernet ");
+	}
 
 	if (memlimit)
 		fprintf(f, "memlimit %s", sprint_size(memlimit, b1));
