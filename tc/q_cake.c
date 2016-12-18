@@ -53,8 +53,8 @@ static void explain(void)
 {
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* | autorate_ingress ]\n"
 	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
-	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
-	                "                [ flowblind | srchost | dsthost | hosts | flows* | dual-srchost | dual-dsthost | triple-isolate ] [ nat | nonat* ]\n"
+	                "                [ besteffort | precedence | diffserv8 | diffserv4 | diffserv-llt | diffserv3* ]\n"
+	                "                [ flowblind | srchost | dsthost | hosts | flows | dual-srchost | dual-dsthost | triple-isolate* ] [ nat | nonat* ]\n"
 	                "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 	                "                [ wash | nowash* ]\n"
 	                "                [ memlimit LIMIT ]\n"
@@ -142,6 +142,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = 4;
 		} else if (strcmp(*argv, "diffserv-llt") == 0) {
 			diffserv = 5;
+		} else if (strcmp(*argv, "diffserv3") == 0) {
+			diffserv = 6;
 
 		} else if (strcmp(*argv, "nowash") == 0) {
 			wash = 0;
@@ -390,6 +392,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		case 5:
 			fprintf(f, "diffserv-llt ");
 			break;
+		case 6:
+			fprintf(f, "diffserv3 ");
+			break;
 		default:
 			fprintf(f, "(?diffserv?) ");
 			break;
@@ -539,6 +544,10 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, " capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
 
 		switch(stnc->tin_cnt) {
+		case 3:
+			fprintf(f, "                 Bulk   Best Effort      Voice\n");
+			break;
+
 		case 4:
 			fprintf(f, "                 Bulk   Best Effort      Video       Voice\n");
 			break;
