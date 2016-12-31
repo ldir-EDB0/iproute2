@@ -55,7 +55,7 @@ static void explain(void)
 	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
 	                "                [ besteffort | precedence | diffserv8 | diffserv4 | diffserv-llt | diffserv3* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows | dual-srchost | dual-dsthost | triple-isolate* ] [ nat | nonat* ]\n"
-	                "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
+	                "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ] [ mpu N ]\n"
 	                "                [ wash | nowash* ]\n"
 	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
@@ -74,6 +74,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	bool overhead_set = false;
 	bool overhead_override = false;
 	int wash = -1;
+	int mpu = 0;
 	int flowmode = -1;
 	int nat = -1;
 	int atm = -1;
@@ -257,6 +258,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * you may need to add vlan tag */
 			overhead += 38;
 			overhead_set = true;
+			mpu = 84;
 
 		/* Additional Ethernet-related overhead used by some ISPs */
 		} else if (strcmp(*argv, "ether-vlan") == 0) {
@@ -272,6 +274,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			atm = 0;
 			overhead += 18;
 			overhead_set = true;
+			mpu = 64;
 
 		} else if (strcmp(*argv, "overhead") == 0) {
 			char* p = NULL;
@@ -282,6 +285,15 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			overhead_set = true;
+
+		} else if (strcmp(*argv, "mpu") == 0) {
+			char* p = NULL;
+			NEXT_ARG();
+			mpu = strtol(*argv, &p, 10);
+			if(!p || *p || !*argv || mpu < 0 || mpu > 256) {
+				fprintf(stderr, "Illegal \"mpu\", valid range is 0 to 256\\n");
+				return -1;
+			}
 
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
@@ -317,6 +329,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		unsigned zero = 0;
 		addattr_l(n, 1024, TCA_CAKE_ETHERNET, &zero, sizeof(zero));
 	}
+	if (mpu > 0)
+		addattr_l(n, 1024, TCA_CAKE_MPU, &mpu, sizeof(mpu));
 	if (interval)
 		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
 	if (target)
@@ -345,6 +359,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned memlimit = 0;
 	int overhead = 0;
 	int ethernet = 0;
+	int mpu = 0;
 	int atm = 0;
 	int nat = 0;
 	int autorate = 0;
@@ -450,6 +465,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
 		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
 	}
+	if (tb[TCA_CAKE_MPU] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_MPU]) >= sizeof(__u32)) {
+		mpu = rta_getattr_u32(tb[TCA_CAKE_MPU]);
+	}
 	if (tb[TCA_CAKE_ETHERNET] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ETHERNET]) >= sizeof(__u32)) {
 		ethernet = rta_getattr_u32(tb[TCA_CAKE_ETHERNET]);
@@ -481,6 +500,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		// its presence as a boolean for now.
 		if (ethernet)
 			fprintf(f, "via-ethernet ");
+	}
+
+	if (mpu) {
+		fprintf(f, "mpu %d ", mpu);
 	}
 
 	if (memlimit)
