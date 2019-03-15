@@ -47,6 +47,7 @@ TCMODULES += m_skbmod.o
 TCMODULES += m_csum.o
 TCMODULES += m_simple.o
 TCMODULES += m_vlan.o
+TCMODULES += m_conndscp.o
 TCMODULES += m_connmark.o
 TCMODULES += m_bpf.o
 TCMODULES += m_tunnel_key.o
