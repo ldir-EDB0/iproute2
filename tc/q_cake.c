@@ -619,6 +619,8 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 {
 	struct rtattr *st[TCA_CAKE_STATS_MAX + 1];
 	SPRINT_BUF(b1);
+	__u64 traf_cap;
+	__u32 traf_bps, traf_pct, traf_time;
 	int i;
 
 	if (xstats == NULL)
@@ -644,10 +646,14 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			GET_STAT_U32(MEMORY_LIMIT));
 	}
 
-	if (st[TCA_CAKE_STATS_CAPACITY_ESTIMATE64])
-		tc_print_rate(PRINT_ANY, "capacity_estimate",
-			      " capacity estimate: %s\n",
-			      GET_STAT_U64(CAPACITY_ESTIMATE64));
+	traf_cap = 1;
+	if (st[TCA_CAKE_STATS_CAPACITY_ESTIMATE64]) {
+		print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
+			sprint_rate(GET_STAT_U64(CAPACITY_ESTIMATE64), b1));
+		print_uint(PRINT_JSON, "capacity_estimate", NULL,
+			GET_STAT_U64(CAPACITY_ESTIMATE64));
+		traf_cap = GET_STAT_U64(CAPACITY_ESTIMATE64);
+	}
 
 	if (st[TCA_CAKE_STATS_MIN_NETLEN] &&
 	    st[TCA_CAKE_STATS_MAX_NETLEN]) {
@@ -799,6 +805,30 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
 		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
+
+		fprintf(f, "  traffic%%");
+		for (i = 0; i < num_tins; i++) {
+			traf_bps = rta_getattr_u32(GET_TSTAT(i, TRAFFIC_BYTES));
+			traf_time = rta_getattr_u32(GET_TSTAT(i, TRAFFIC_TIME));
+			traf_pct = 0;
+			if (traf_time)
+				traf_pct = ((traf_bps * 1000ULL) / traf_time) * 100ULL / traf_cap;
+			fprintf(f, " %12u", traf_pct);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "  traftin%%");
+		for (i = 0; i < num_tins; i++) {
+			traf_bps = rta_getattr_u32(GET_TSTAT(i, TRAFFIC_BYTES));
+			traf_time = rta_getattr_u32(GET_TSTAT(i, TRAFFIC_TIME));
+			traf_cap = rta_getattr_u64(GET_TSTAT(i, THRESHOLD_RATE64));
+
+			traf_pct = 0;
+			if (traf_time)
+				traf_pct = ((traf_bps * 1000ULL) / traf_time) * 100ULL / traf_cap;
+			fprintf(f, " %12u", traf_pct);
+		}
+		fprintf(f, "\n");
 
 		PRINT_TSTAT_U32("  way_inds", WAY_INDIRECT_HITS);
 		PRINT_TSTAT_U32("  way_miss", WAY_MISSES);
