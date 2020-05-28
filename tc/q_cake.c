@@ -45,6 +45,7 @@ static const char * diffserv_names[CAKE_DIFFSERV_MAX] = {
 	[CAKE_DIFFSERV_DIFFSERV8] = "diffserv8",
 	[CAKE_DIFFSERV_BESTEFFORT] = "besteffort",
 	[CAKE_DIFFSERV_PRECEDENCE] = "precedence",
+	[CAKE_DIFFSERV_DIFFSERV5] = "diffserv5"
 };
 
 static const char * flowmode_names[CAKE_FLOW_MAX] = {
@@ -74,7 +75,7 @@ static void explain(void)
 		"Usage: ... cake [ bandwidth RATE | unlimited* | autorate-ingress ]\n"
 		"                [ rtt TIME | datacentre | lan | metro | regional |\n"
 		"                  internet* | oceanic | satellite | interplanetary ]\n"
-		"                [ besteffort | diffserv8 | diffserv4 | diffserv3* ]\n"
+		"                [ besteffort | diffserv8 | diffserv5 | diffserv4 | diffserv3* ]\n"
 		"                [ flowblind | srchost | dsthost | hosts | flows |\n"
 		"                  dual-srchost | dual-dsthost | triple-isolate* ]\n"
 		"                [ nat | nonat* ]\n"
@@ -149,6 +150,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = CAKE_DIFFSERV_PRECEDENCE;
 		} else if (strcmp(*argv, "diffserv8") == 0) {
 			diffserv = CAKE_DIFFSERV_DIFFSERV8;
+		} else if (strcmp(*argv, "diffserv5") == 0) {
+			diffserv = CAKE_DIFFSERV_DIFFSERV5;
 		} else if (strcmp(*argv, "diffserv4") == 0) {
 			diffserv = CAKE_DIFFSERV_DIFFSERV4;
 		} else if (strcmp(*argv, "diffserv") == 0) {
@@ -759,6 +762,10 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		case 4:
 			fprintf(f, "                   Bulk  Best Effort        Video        Voice\n");
+			break;
+
+		case 5:
+			fprintf(f, "           Least Effort         Bulk  Best Effort        Video        Voice\n");
 			break;
 
 		default:
